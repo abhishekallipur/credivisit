@@ -845,6 +845,154 @@ def _extract_rental_data(text: str) -> Dict:
     return data
 
 
+# ─── Document Relevance Validation ──────────────────────────────────────────
+
+# Keywords that indicate a document is NOT credit-relevant (academic content,
+# textbooks, study material, lecture notes, technical manuals, etc.)
+_IRRELEVANT_KEYWORDS = [
+    "chapter", "module", "syllabus", "lecture", "textbook", "lesson plan",
+    "learning objective", "course outline", "table of contents",
+    "bibliography", "references cited", "abstract", "introduction to",
+    "theory of", "definition of", "algorithm", "theorem", "proof",
+    "equation", "diagram", "figure", "appendix", "exercise",
+    "question paper", "model paper", "previous year", "assignment",
+    "experiment", "laboratory", "lab manual", "viva", "objective type",
+    "multiple choice", "fill in the blank", "short answer", "long answer",
+    "unit test", "internal assessment", "scheme of evaluation",
+    "compiled by", "prepared by", "department of", "faculty of",
+    "published by", "isbn", "edition", "page no",
+]
+
+# Keywords that indicate a document IS credit-relevant (financial,
+# identity, employment, property, bills, etc.)
+_RELEVANT_KEYWORDS = [
+    # Identity
+    "aadhaar", "aadhar", "pan card", "voter id", "ration card",
+    "passport", "driving license", "uid",
+    # Financial
+    "bank statement", "account number", "ifsc", "transaction", "balance",
+    "credit", "debit", "upi", "neft", "imps", "salary", "income",
+    "payment", "receipt", "invoice", "bill amount", "due date",
+    "emi", "loan", "interest", "principal", "repayment",
+    # Employment / Gig
+    "employer", "employee", "salary slip", "pay slip", "swiggy", "zomato",
+    "uber", "ola", "rapido", "dunzo", "urban company", "freelance",
+    "contract", "appointment letter", "offer letter",
+    # Property / Land
+    "land record", "patta", "khata", "survey no", "property",
+    "title deed", "encumbrance",
+    # Academic (credit-relevant: marksheets, certificates)
+    "marksheet", "grade card", "cgpa", "sgpa", "result",
+    "certificate of", "awarded to", "successfully completed",
+    "scholarship", "merit",
+    # Utility bills
+    "electricity bill", "water bill", "gas bill", "consumer no",
+    "meter reading", "bescom", "bwssb",
+    # Savings / Insurance
+    "savings", "fixed deposit", "recurring deposit", "insurance",
+    "premium", "policy no", "pm-kisan", "kisan", "crop insurance",
+    # Vendor / Business
+    "trade license", "vendor", "daily sales", "stall", "shop rent",
+    "mandi", "market fee",
+    # SHG / Community
+    "self help group", "shg", "cooperative", "chit fund",
+    # Recharge / Mobile
+    "recharge", "prepaid", "postpaid", "mobile plan",
+]
+
+
+def check_document_relevance(text: str) -> Dict[str, Any]:
+    """
+    Check whether uploaded document text is relevant for credit scoring.
+
+    Returns:
+        Dict with:
+          - is_relevant (bool): True if document appears credit-relevant
+          - relevance_score (float): 0.0–1.0 confidence of relevance
+          - relevant_signals (list): matched credit-relevant keywords
+          - irrelevant_signals (list): matched irrelevant keywords
+          - reason (str): human-readable explanation
+    """
+    text_lower = text.lower()
+    word_count = len(text_lower.split())
+
+    # Count matches
+    relevant_matches = [kw for kw in _RELEVANT_KEYWORDS if kw in text_lower]
+    irrelevant_matches = [kw for kw in _IRRELEVANT_KEYWORDS if kw in text_lower]
+
+    relevant_count = len(relevant_matches)
+    irrelevant_count = len(irrelevant_matches)
+
+    # Check for monetary amounts (strong relevance signal)
+    amounts = find_amounts(text)
+    has_amounts = len(amounts) > 0
+
+    # Check for dates (moderate relevance signal)
+    date_count = count_dates(text)
+
+    # Score calculation
+    # Relevant signals boost the score, irrelevant signals reduce it
+    relevance_score = 0.0
+
+    if relevant_count > 0:
+        relevance_score += min(relevant_count / 5, 0.5)  # up to 0.5 from keywords
+    if has_amounts:
+        relevance_score += 0.2  # monetary amounts are a strong signal
+    if date_count >= 3:
+        relevance_score += 0.1  # multiple dates suggest records/statements
+
+    # Penalize for irrelevant content
+    if irrelevant_count > 0:
+        penalty = min(irrelevant_count / 8, 0.5)
+        relevance_score -= penalty
+
+    # If heavy irrelevant content with very few relevant signals
+    if irrelevant_count >= 5 and relevant_count <= 2 and not has_amounts:
+        relevance_score = max(relevance_score, 0) * 0.3  # heavy suppression
+
+    # Very long text with no financial signals is likely a textbook/module
+    if word_count > 2000 and relevant_count <= 1 and not has_amounts:
+        relevance_score *= 0.3
+
+    relevance_score = max(0.0, min(1.0, relevance_score))
+
+    # Determine relevance
+    is_relevant = relevance_score >= 0.15
+
+    # Generate reason
+    if not is_relevant:
+        if irrelevant_count > relevant_count:
+            reason = (
+                "This document appears to be academic/study material "
+                "(e.g., textbook, lecture notes, syllabus, module PDF) "
+                "and does not contain credit-relevant financial data. "
+                "Please upload documents like bank statements, ID cards, "
+                "utility bills, marksheets, salary slips, or land records."
+            )
+        elif word_count > 2000 and not has_amounts:
+            reason = (
+                "This document is lengthy but contains no financial data "
+                "(no monetary amounts, account numbers, or transaction records). "
+                "Please upload credit-relevant documents instead."
+            )
+        else:
+            reason = (
+                "Could not find credit-relevant information in this document. "
+                "Please upload documents such as bank statements, ID proofs, "
+                "utility bills, marksheets, salary slips, or land records."
+            )
+    else:
+        reason = ""
+
+    return {
+        "is_relevant": is_relevant,
+        "relevance_score": round(relevance_score, 3),
+        "relevant_signals": relevant_matches,
+        "irrelevant_signals": irrelevant_matches,
+        "reason": reason,
+    }
+
+
 # ─── Main Analysis Function ─────────────────────────────────────────────────
 
 PERSONA_EXTRACTORS = {
@@ -934,12 +1082,87 @@ def analyze_documents(
         except Exception:
             merged_df = all_dfs[0]
 
+    # ── Relevance check ────────────────────────────────────────────────
+    relevance = check_document_relevance(all_text)
+    if not relevance["is_relevant"]:
+        return {
+            "detected_persona": persona or "unknown",
+            "detection_confidence": 0.0,
+            "extracted_data": {},
+            "document_summaries": doc_summaries,
+            "parsed_documents": parsed_documents,
+            "detected_document_types": [],
+            "ocr_used": ocr_used,
+            "warnings": [relevance["reason"]],
+            "total_text_length": len(all_text),
+            "files_processed": len(files),
+            "is_relevant": False,
+            "relevance_score": relevance["relevance_score"],
+            "relevance_reason": relevance["reason"],
+        }
+    # ───────────────────────────────────────────────────────────────────
+
     # Auto-detect persona if not specified
     detect_confidence = 0.0
     if persona is None:
         persona, detect_confidence = auto_detect_persona(all_text)
     else:
         detect_confidence = 0.95
+
+        # ── Persona-document mismatch check ────────────────────────────
+        # Even when user explicitly selected a persona, verify the
+        # uploaded documents actually belong to that persona category.
+        detected_persona, detected_conf = auto_detect_persona(all_text)
+        if (
+            detected_persona != persona
+            and detected_conf >= 0.15           # auto-detect is reasonably sure
+            and detected_persona != "general_no_bank"  # general is a catch-all
+        ):
+            # Double-check: does the document have ANY keywords for the
+            # selected persona?  If yes at decent level, allow it.
+            text_lower = all_text.lower()
+            selected_kws = PERSONA_KEYWORDS.get(persona, [])
+            selected_hits = sum(1 for kw in selected_kws if kw in text_lower)
+            selected_ratio = selected_hits / len(selected_kws) if selected_kws else 0
+
+            detected_kws = PERSONA_KEYWORDS.get(detected_persona, [])
+            detected_hits = sum(1 for kw in detected_kws if kw in text_lower)
+            detected_ratio = detected_hits / len(detected_kws) if detected_kws else 0
+
+            # Reject if detected persona has significantly more signal
+            # than the selected persona (clear mismatch)
+            if detected_ratio > selected_ratio and selected_ratio < 0.15:
+                from src.alternative_profiles import PERSONAS as _PERSONAS
+                selected_label = _PERSONAS.get(
+                    persona, {}).get("label", persona.replace("_", " ").title())
+                detected_label = _PERSONAS.get(
+                    detected_persona, {}).get("label", detected_persona.replace("_", " ").title())
+
+                mismatch_reason = (
+                    f"The uploaded documents appear to be **{detected_label}** documents, "
+                    f"but you selected the **{selected_label}** persona. "
+                    f"Please upload documents relevant to the {selected_label} category, "
+                    f"or switch to the {detected_label} persona to score these documents correctly."
+                )
+                return {
+                    "detected_persona": persona,
+                    "detection_confidence": 0.0,
+                    "extracted_data": {},
+                    "document_summaries": doc_summaries,
+                    "parsed_documents": parsed_documents,
+                    "detected_document_types": [],
+                    "ocr_used": ocr_used,
+                    "warnings": [mismatch_reason],
+                    "total_text_length": len(all_text),
+                    "files_processed": len(files),
+                    "is_relevant": True,
+                    "persona_mismatch": True,
+                    "actual_persona": detected_persona,
+                    "actual_persona_confidence": detected_conf,
+                    "mismatch_reason": mismatch_reason,
+                    "relevance_score": relevance["relevance_score"],
+                }
+        # ────────────────────────────────────────────────────────────────
 
     # Extract data using persona-specific extractor (regex-based)
     extractor = PERSONA_EXTRACTORS.get(persona, extract_general_data)
@@ -995,6 +1218,8 @@ def analyze_documents(
         "warnings": warnings,
         "total_text_length": len(all_text),
         "files_processed": len(files),
+        "is_relevant": True,
+        "relevance_score": relevance["relevance_score"],
     }
 
 

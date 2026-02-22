@@ -2118,50 +2118,94 @@ def main():
                     with st.spinner("Analyzing documents and extracting data..."):
                         analysis = analyze_documents(files, persona=persona_to_use)
 
-                    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-                    st.markdown('<div class="section-header">📑 Document Analysis Summary</div>', unsafe_allow_html=True)
+                    # ── Relevance gate: reject irrelevant documents ──
+                    if not analysis.get("is_relevant", True):
+                        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+                        st.error(
+                            "🚫 **Documents Not Related to Credit Scoring**\n\n"
+                            + analysis.get("relevance_reason",
+                                           "The uploaded documents do not contain credit-relevant data.")
+                            + "\n\n**Accepted documents include:** bank statements, salary slips, "
+                            "ID proofs (Aadhaar, PAN), utility bills, land records, marksheets, "
+                            "gig-platform earnings, insurance papers, etc."
+                        )
+                        # Show basic file summary so user knows what was processed
+                        if analysis["document_summaries"]:
+                            with st.expander("📋 Files processed", expanded=False):
+                                for ds in analysis["document_summaries"]:
+                                    st.caption(
+                                        f"**{ds['filename']}** — {ds['text_length']:,} chars, "
+                                        f"{ds['amounts_found']} amounts, {ds['dates_found']} dates"
+                                    )
 
-                    as1, as2, as3, as4 = st.columns(4)
-                    as1.metric("Files Processed", analysis["files_processed"])
-                    as2.metric("Text Extracted", f"{analysis['total_text_length']:,} chars")
-                    detected_label = PERSONAS.get(analysis["detected_persona"], {}).get("label", analysis["detected_persona"])
-                    as3.metric("Detected Persona", detected_label)
-                    as4.metric("OCR Used", "Yes" if analysis.get("ocr_used") else "No")
+                    # ── Persona-document mismatch gate ──
+                    elif analysis.get("persona_mismatch", False):
+                        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+                        st.error(
+                            "🚫 **Document-Persona Mismatch**\n\n"
+                            + analysis.get("mismatch_reason",
+                                           "The uploaded documents do not match the selected persona.")
+                        )
+                        actual = analysis.get("actual_persona")
+                        if actual:
+                            actual_label = PERSONAS.get(actual, {}).get("label", actual)
+                            st.info(
+                                f"💡 **Suggestion:** These documents appear to belong to the "
+                                f"**{actual_label}** category. Switch to that persona or "
+                                f"upload documents that match your selected persona."
+                            )
+                        if analysis["document_summaries"]:
+                            with st.expander("📋 Files processed", expanded=False):
+                                for ds in analysis["document_summaries"]:
+                                    st.caption(
+                                        f"**{ds['filename']}** — {ds['text_length']:,} chars, "
+                                        f"{ds['amounts_found']} amounts, {ds['dates_found']} dates"
+                                    )
+                    else:
+                        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+                        st.markdown('<div class="section-header">📑 Document Analysis Summary</div>', unsafe_allow_html=True)
 
-                    doc_types = analysis.get("detected_document_types", [])
-                    if doc_types:
-                        type_labels = [t.replace('_', ' ').title() for t in doc_types]
-                        st.info(f"📄 Documents identified: {', '.join(type_labels)}")
+                        as1, as2, as3, as4 = st.columns(4)
+                        as1.metric("Files Processed", analysis["files_processed"])
+                        as2.metric("Text Extracted", f"{analysis['total_text_length']:,} chars")
+                        detected_label = PERSONAS.get(analysis["detected_persona"], {}).get("label", analysis["detected_persona"])
+                        as3.metric("Detected Persona", detected_label)
+                        as4.metric("OCR Used", "Yes" if analysis.get("ocr_used") else "No")
 
-                    if analysis["document_summaries"]:
-                        file_summary_data = []
-                        for ds in analysis["document_summaries"]:
-                            file_summary_data.append({
-                                "File": ds["filename"],
-                                "Doc Type": ds.get("document_type", "unknown").replace('_', ' ').title(),
-                                "Text Length": f"{ds['text_length']:,}",
-                                "OCR": "✓" if ds.get("ocr_used") else "✗",
-                                "Has Table": "✓" if ds["has_table"] else "✗",
-                                "Rows": ds["rows"], "Amounts Found": ds["amounts_found"],
-                                "Dates Found": ds["dates_found"],
-                            })
-                        st.dataframe(pd.DataFrame(file_summary_data), use_container_width=True, hide_index=True)
+                        doc_types = analysis.get("detected_document_types", [])
+                        if doc_types:
+                            type_labels = [t.replace('_', ' ').title() for t in doc_types]
+                            st.info(f"📄 Documents identified: {', '.join(type_labels)}")
 
-                    for w in analysis.get("warnings", []):
-                        st.warning(f"⚠️ {w}")
+                        if analysis["document_summaries"]:
+                            file_summary_data = []
+                            for ds in analysis["document_summaries"]:
+                                file_summary_data.append({
+                                    "File": ds["filename"],
+                                    "Doc Type": ds.get("document_type", "unknown").replace('_', ' ').title(),
+                                    "Text Length": f"{ds['text_length']:,}",
+                                    "OCR": "✓" if ds.get("ocr_used") else "✗",
+                                    "Has Table": "✓" if ds["has_table"] else "✗",
+                                    "Rows": ds["rows"], "Amounts Found": ds["amounts_found"],
+                                    "Dates Found": ds["dates_found"],
+                                })
+                            st.dataframe(pd.DataFrame(file_summary_data), use_container_width=True, hide_index=True)
 
-                    with st.expander("🔎 View Extracted Data", expanded=False):
-                        extracted = analysis["extracted_data"]
-                        ext_items = []
-                        for k, v in sorted(extracted.items()):
-                            ext_items.append({"Field": k.replace("_", " ").title(), "Value": str(v)})
-                        st.dataframe(pd.DataFrame(ext_items), use_container_width=True, hide_index=True)
+                        for w in analysis.get("warnings", []):
+                            st.warning(f"⚠️ {w}")
 
-                    final_persona = analysis["detected_persona"]
-                    with st.spinner("Computing credit score..."):
-                        alt_result = compute_persona_score(final_persona, analysis["extracted_data"])
-                    st.session_state["alt_score_result"] = alt_result
-                    st.session_state["alt_score_persona_config"] = PERSONAS[final_persona]
+                        with st.expander("🔎 View Extracted Data", expanded=False):
+                            extracted = analysis["extracted_data"]
+                            ext_items = []
+                            for k, v in sorted(extracted.items()):
+                                ext_items.append({"Field": k.replace("_", " ").title(), "Value": str(v)})
+                            st.dataframe(pd.DataFrame(ext_items), use_container_width=True, hide_index=True)
+
+                        final_persona = analysis["detected_persona"]
+                        with st.spinner("Computing credit score..."):
+                            alt_result = compute_persona_score(final_persona, analysis["extracted_data"])
+                        st.session_state["alt_score_result"] = alt_result
+                        st.session_state["alt_score_persona_config"] = PERSONAS[final_persona]
 
             if "alt_score_result" in st.session_state and alt_result is None:
                 alt_result = st.session_state.get("alt_score_result")

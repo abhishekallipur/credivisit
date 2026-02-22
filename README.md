@@ -14,11 +14,22 @@
 Over **1.7 billion adults** worldwide remain unbanked or underbanked, lacking access to formal credit due to the absence of traditional credit history (like CIBIL scores). Gig workers, street vendors, and informal workers often have no payslips, credit cards, or loans to generate a score — yet many are financially responsible.
 
 **CrediVist** solves this by building an **Alternative Trust Score (300–900)** using non-traditional data signals like:
+
 - Cash flow patterns
 - Utility bill payment behavior
 - Mobile recharge regularity
 - Gig platform tenure and ratings
 - Transaction regularity & expense discipline
+
+---
+
+## 📸 Screenshot
+
+<p align="center">
+        <img src="img/ph1.png" alt="Screenshot 1" width="32%" />
+        <img src="img/ph2.png" alt="Screenshot 2" width="32%" />
+        <img src="img/ph3.png" alt="Screenshot 3" width="32%" />
+</p>
 
 ---
 
@@ -40,27 +51,27 @@ Explainability Layer (SHAP)
 
 ### 10 Alternative Credit Criteria
 
-| # | Criteria | Signal |
-|---|----------|--------|
-| A | Income Stability Index | Month-to-month variance, consistency, trend |
-| B | Cash Flow Health Ratio | (Income - Fixed Expenses) / Income |
-| C | Income Source Diversity | Multiple gig platforms = lower risk |
-| D | Utility Bill Timeliness | On-time payment rate, delay penalties |
-| E | EMI-Like Pattern Detection | Recurring payment recognition |
-| F | Transaction Regularity | Weekly transaction consistency |
-| G | Expense Categorization | Essential vs entertainment spending ratio |
-| H | Savings Behavior | Recurring savings, minimum balance |
-| I | Platform Tenure & Rating | Gig platform performance proxy |
-| J | Shock Recovery Score | Income dip recovery speed |
+| #   | Criteria                   | Signal                                      |
+| --- | -------------------------- | ------------------------------------------- |
+| A   | Income Stability Index     | Month-to-month variance, consistency, trend |
+| B   | Cash Flow Health Ratio     | (Income - Fixed Expenses) / Income          |
+| C   | Income Source Diversity    | Multiple gig platforms = lower risk         |
+| D   | Utility Bill Timeliness    | On-time payment rate, delay penalties       |
+| E   | EMI-Like Pattern Detection | Recurring payment recognition               |
+| F   | Transaction Regularity     | Weekly transaction consistency              |
+| G   | Expense Categorization     | Essential vs entertainment spending ratio   |
+| H   | Savings Behavior           | Recurring savings, minimum balance          |
+| I   | Platform Tenure & Rating   | Gig platform performance proxy              |
+| J   | Shock Recovery Score       | Income dip recovery speed                   |
 
 ### 4 Sub-Scores
 
-| Sub-Score | Weight | Components |
-|-----------|--------|------------|
-| Financial Stability | 35% | Income stability, cash flow, savings |
-| Payment Discipline | 30% | Utility bills, EMI behavior, recharge |
-| Digital Behavior | 20% | Transaction regularity, expense ratio |
-| Work Reliability | 15% | Tenure, rating, diversity, shock recovery |
+| Sub-Score           | Weight | Components                                |
+| ------------------- | ------ | ----------------------------------------- |
+| Financial Stability | 35%    | Income stability, cash flow, savings      |
+| Payment Discipline  | 30%    | Utility bills, EMI behavior, recharge     |
+| Digital Behavior    | 20%    | Transaction regularity, expense ratio     |
+| Work Reliability    | 15%    | Tenure, rating, diversity, shock recovery |
 
 ---
 
@@ -113,12 +124,12 @@ CrediVist/
 
 ## 🖥 App Features
 
-| View | Description |
-|------|-------------|
-| **Individual Score** | Detailed credit assessment for any user with gauge, breakdown, and SHAP explanation |
-| **Portfolio Analytics** | Population-level insights: score distribution, grade breakdown, risk scatter plot |
-| **Model Performance** | ML metrics: accuracy, ROC AUC, confusion matrix, feature importance |
-| **Score Simulator** | Interactive sliders to test "what-if" scenarios and see real-time score changes |
+| View                    | Description                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| **Individual Score**    | Detailed credit assessment for any user with gauge, breakdown, and SHAP explanation |
+| **Portfolio Analytics** | Population-level insights: score distribution, grade breakdown, risk scatter plot   |
+| **Model Performance**   | ML metrics: accuracy, ROC AUC, confusion matrix, feature importance                 |
+| **Score Simulator**     | Interactive sliders to test "what-if" scenarios and see real-time score changes     |
 
 ---
 
@@ -134,13 +145,13 @@ CrediVist/
 
 ## 📊 Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Backend | Python, Pandas, NumPy |
-| ML | Scikit-learn, XGBoost |
-| Explainability | SHAP |
-| Frontend | Streamlit |
-| Visualization | Plotly, Matplotlib |
+| Component      | Technology            |
+| -------------- | --------------------- |
+| Backend        | Python, Pandas, NumPy |
+| ML             | Scikit-learn, XGBoost |
+| Explainability | SHAP                  |
+| Frontend       | Streamlit             |
+| Visualization  | Plotly, Matplotlib    |
 
 ---
 
@@ -156,7 +167,7 @@ CrediVist/
 
 ## 👥 Team CrediVist
 
-Built with ❤️ for hackathon by **Manoj G Sanningammanavar**
+Built with ❤️ for hackathon by **Abhishek Allipur**
 
 ---
 
